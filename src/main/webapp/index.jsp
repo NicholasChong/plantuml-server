@@ -1,136 +1,57 @@
 <%@ page info="index" contentType="text/html; charset=utf-8" pageEncoding="utf-8" session="false" %>
-
 <%
-    // diagram sources
-    String decoded = request.getAttribute("decoded").toString();
-    // properties
-    boolean showSocialButtons = (boolean)request.getAttribute("showSocialButtons");
-    boolean showGithubRibbon = (boolean)request.getAttribute("showGithubRibbon");
-    // URL base
-    String contextpath = request.getAttribute("contextpath").toString();
-    // image URLs
-    boolean hasImg = (boolean)request.getAttribute("hasImg");
-    String imgurl = request.getAttribute("imgurl").toString();
-    String svgurl = request.getAttribute("svgurl").toString();
-    String txturl = request.getAttribute("txturl").toString();
-    String pdfurl = request.getAttribute("pdfurl").toString();
-    String mapurl = request.getAttribute("mapurl").toString();
-    // map for diagram source if necessary
-    boolean hasMap = (boolean)request.getAttribute("hasMap");
-    String map = request.getAttribute("map").toString();
+  // diagram sources
+  String encoded = request.getAttribute("encoded").toString();
+  String decoded = request.getAttribute("decoded").toString();
+  String index = request.getAttribute("index").toString();
+  String diagramUrl = ((index.isEmpty()) ? "" : index + "/") + encoded;
+  // map for diagram source if necessary
+  String map = request.getAttribute("map").toString();
+  boolean hasMap = !map.isEmpty();
+  // properties
+  boolean showSocialButtons = (boolean)request.getAttribute("showSocialButtons");
+  boolean showGithubRibbon = (boolean)request.getAttribute("showGithubRibbon");
 %>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-    <meta http-equiv="expires" content="0" />
-    <meta http-equiv="pragma" content="no-cache" />
-    <meta http-equiv="cache-control" content="no-cache, must-revalidate" />
-    <link rel="icon" href="<%= contextpath %>/favicon.ico" type="image/x-icon"/> 
-    <link rel="shortcut icon" href="<%= contextpath %>/favicon.ico" type="image/x-icon"/>
-    <link rel="stylesheet" href="<%= contextpath %>/plantuml.css" />
-    <link rel="stylesheet" href="<%= contextpath %>/webjars/codemirror/5.63.0/lib/codemirror.css" />
-    <script src="<%= contextpath %>/webjars/codemirror/5.63.0/lib/codemirror.js"></script>
-    <script>
-        window.onload = function() {
-            // load CodeMirror
-            document.myCodeMirror = CodeMirror.fromTextArea(
-                document.getElementById("text"), 
-                { lineNumbers: true,
-                  extraKeys: {Tab: false, "Shift-Tab": false} 
-                }
-            );
-            // resolve relative path inside url input once
-            const url = document.getElementById("url");
-            if (!url.value.startsWith("http")) {
-                url.value = window.location.origin + url.value;
-            }
-        };
-    </script>
-    <title>PlantUMLServer</title>
+  <%@ include file="resource/htmlheadbase.jsp" %>
+  <title>PlantUML Server</title>
 </head>
 <body>
-    <div id="header">
-        <%-- PAGE TITLE --%>
-        <h1>PlantUML Server</h1>
-        <% if (showSocialButtons) { %>
-            <%@ include file="resource/socialbuttons1.html" %>
-        <% } %>
-        <% if (showGithubRibbon) { %>
-            <%@ include file="resource/githubribbon.html" %>
-        <% } %>
-        <p>Create your <a href="https://plantuml.com">PlantUML</a> diagrams directly in your browser!</p>
+  <div class="app flex-rows">
+    <div class="header">
+      <h1>PlantUML Server</h1>
+      <% if (showSocialButtons) { %>
+        <%@ include file="resource/socialbuttons1.html" %>
+      <% } %>
+      <% if (showGithubRibbon) { %>
+        <%@ include file="resource/githubribbon.html" %>
+      <% } %>
+      <p>Create your <a href="https://plantuml.com">PlantUML</a> diagrams directly in your browser!</p>
     </div>
-    <div id="content">
-        <%-- CONTENT --%>
-        <form method="post" accept-charset="utf-8"  action="<%= contextpath %>/form">
-            <p> <label for="text">UML Editor Content</label>
-                <textarea id="text" name="text" cols="120" rows="10"><%= net.sourceforge.plantuml.servlet.PlantUmlServlet.stringToHTMLString(decoded) %></textarea>
-                <input type="submit" value="Submit" title="Submit Code and generate diagram"/>&nbsp;
-                <input type="submit" value="Copy Content to Clipboard" title="Copy Content to the clipboard" onclick="copyToClipboard('text','Content');return false; ">
-            </p>
-        </form>
-        <hr/>
-        <p>You can enter here a previously generated URL:</p>
-        <form method="post" action="<%= contextpath %>/form">
-            <p> <label for="url">previously generated URL</label>
-                <input id="url" name="url" type="text" size="150" value="<%= imgurl %>" />
-                <br/>
-                <input type="submit" value="Decode URL" title="Decode URL and show code and diagram"/>&nbsp;
-                <input type="submit" value="Copy URL to Clipboard" title="Copy URL to the clipboard" onclick="copyToClipboard('url','URL');return false; ">
-            </p>
-        </form>
-        <% if (hasImg) { %>
-            <hr/>
-            <a href="<%= imgurl %>" title="View diagram as PNG">View as PNG</a>&nbsp;
-            <a href="<%= svgurl %>" title="View diagram as SVG">View as SVG</a>&nbsp;
-            <a href="<%= txturl %>" title="View diagram as ASCII Art">View as ASCII Art</a>&nbsp;
-            <a href="<%= pdfurl %>" title="View diagram as PDF">View as PDF</a>&nbsp;
-            <% if (hasMap) { %>
-                <a href="<%= mapurl %>">View Map Data</a>
-            <% } %>
-            <% if (showSocialButtons) { %>
-                <%@ include file="resource/socialbuttons2.jspf" %>
-            <% } %>
-            <p id="diagram">
-                <% if (!hasMap) { %>
-                    <img src="<%= imgurl %>" alt="PlantUML diagram" />
-                <% } else { %>
-                    <img src="<%= imgurl %>" alt="PlantUML diagram" usemap="#plantuml_map" />
-                    <%= map %>
-                <% } %>
-            </p>
-        <% } %>
+    <div class="main flex-main flex-columns">
+      <div id="editor-main-container" class="editor flex-main flex-rows">
+        <div>
+          <div class="btn-input">
+            <input id="url" type="text" name="url" value="png/<%= diagramUrl %>" />
+            <input type="image" alt="copy" src="assets/copy.svg" onclick="copyUrlToClipboard()" />
+          </div>
+        </div>
+        <div class="flex-main monaco-editor-container">
+          <textarea id="initCode" name="initCode" style="display: none;"><%= net.sourceforge.plantuml.servlet.PlantUmlServlet.stringToHTMLString(decoded) %></textarea>
+          <div id="monaco-editor"></div>
+          <input type="image" alt="copy" src="assets/copy.svg" onclick="copyCodeToClipboard()" />
+        </div>
+      </div>
+      <div id="previewer-main-container" class="previewer flex-main">
+        <%@ include file="resource/preview.jsp" %>
+      </div>
     </div>
-    <script>
-        var clipboard_write=false;
-        var clipboard_read=false;
-        
-        if (navigator.permissions){
-        navigator.permissions.query({ name: "clipboard-write" }).then((result) => {
-            if (result.state == "granted" || result.state == "prompt") {
-                clipboard_write = true;
-            }
-        });
-        navigator.permissions.query({ name: "clipboard-read" }).then((result) => {
-            if (result.state == "granted" || result.state == "prompt") {
-                clipboard_read = true;
-            }
-        });
-        };
-
-    function copyToClipboard(fieldid, fielddesc) {
-        if (clipboard_write == true){
-        var copyText = '';
-        copyText = document.getElementById(fieldid).value;
-            navigator.clipboard.writeText(document.getElementById(fieldid).value)
-            alert(fielddesc + " copied to clipboard");
-        }
-        return false;
-    }
-</script>
-    <%-- FOOTER --%>
-    <%@ include file="footer.jspf" %> 
+    <div class="footer">
+      <%@ include file="resource/footer.jsp" %>
+    </div>
+  </div>
 </body>
 </html>

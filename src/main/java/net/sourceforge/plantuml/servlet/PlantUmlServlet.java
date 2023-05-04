@@ -27,21 +27,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import javax.net.ssl.HttpsURLConnection;
 
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import net.sourceforge.plantuml.OptionFlags;
 import net.sourceforge.plantuml.api.PlantumlUtils;
-import net.sourceforge.plantuml.code.Transcoder;
-import net.sourceforge.plantuml.code.TranscoderUtil;
+import net.sourceforge.plantuml.code.NoPlantumlCompressionException;
 import net.sourceforge.plantuml.png.MetadataTag;
 import net.sourceforge.plantuml.servlet.utility.Configuration;
 import net.sourceforge.plantuml.servlet.utility.UmlExtractor;
@@ -58,7 +53,7 @@ import net.sourceforge.plantuml.servlet.utility.UrlDataExtractor;
  * Modified by Maxime Sinclair
  */
 @SuppressWarnings("SERIAL")
-public class PlantUmlServlet extends HttpServlet {
+public class PlantUmlServlet extends AsciiCoderServlet {
 
     /**
      * Default encoded uml text.
@@ -66,10 +61,10 @@ public class PlantUmlServlet extends HttpServlet {
      */
     private static final String DEFAULT_ENCODED_TEXT = "SyfFKj2rKt3CoKnELR1Io4ZDoSa70000";
 
-    /**
-     * Regex pattern to fetch last part of the URL.
-     */
-    private static final Pattern URL_PATTERN = Pattern.compile("^.*[^a-zA-Z0-9\\-\\_]([a-zA-Z0-9\\-\\_]+)");
+    @Override
+    protected String getServletContextPath() {
+        return "uml";
+    }
 
     static {
         OptionFlags.ALLOW_INCLUDE = false;
@@ -78,11 +73,19 @@ public class PlantUmlServlet extends HttpServlet {
         }
     }
 
+    /**
+     * Encode arbitrary string to HTML string.
+     *
+     * @param string arbitrary string
+     *
+     * @return html encoded string
+     */
     public static String stringToHTMLString(String string) {
-        final StringBuffer sb = new StringBuffer(string.length());
+        final StringBuilder sb = new StringBuilder(string.length());
         // true if last char was blank
         final int length = string.length();
-        for (int offset = 0; offset < length;) {
+        int offset = 0;
+        while (offset < length) {
             final int c = string.codePointAt(offset);
             if (c == ' ') {
                 sb.append(' ');
@@ -115,7 +118,6 @@ public class PlantUmlServlet extends HttpServlet {
         return sb.toString();
     }
 
-
     @Override
     public void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
         request.setCharacterEncoding("UTF-8");
@@ -133,8 +135,15 @@ public class PlantUmlServlet extends HttpServlet {
         final int idx = UrlDataExtractor.getIndex(request.getRequestURI());
 
         // forward to index.jsp
+        final String path;
+        final String view = request.getParameter("view");
+        if (view != null && view.equalsIgnoreCase("previewer")) {
+            path = "/previewer.jsp";
+        } else {
+            path = "/index.jsp";
+        }
         prepareRequestForDispatch(request, text, idx);
-        final RequestDispatcher dispatcher = request.getRequestDispatcher("/index.jsp");
+        final RequestDispatcher dispatcher = request.getRequestDispatcher(path);
         dispatcher.forward(request, response);
     }
 
@@ -182,6 +191,10 @@ public class PlantUmlServlet extends HttpServlet {
             if (text != null && !text.isEmpty()) {
                 return text;
             }
+        } catch (NoPlantumlCompressionException e) {
+            // no textual diagram source available from Url
+            // ignore and try 2. method (metadata) below
+            // do not spam output console
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -215,26 +228,7 @@ public class PlantUmlServlet extends HttpServlet {
      * @throws IOException if an input or output exception occurred
      */
     private String getTextFromUrl(HttpServletRequest request) throws IOException {
-        // textual diagram source from request URI
-        String url = request.getRequestURI();
-        if (url.contains("/uml/") && !url.endsWith("/uml/")) {
-            final String encoded = UrlDataExtractor.getEncodedDiagram(request.getRequestURI(), "");
-            if (!encoded.isEmpty()) {
-                return getTranscoder().decode(encoded);
-            }
-        }
-        // textual diagram source from "url" parameter
-        url = request.getParameter("url");
-        if (url != null && !url.trim().isEmpty()) {
-            // Catch the last part of the URL if necessary
-            final Matcher matcher = URL_PATTERN.matcher(url);
-            if (matcher.find()) {
-                url = matcher.group(1);
-            }
-            return getTranscoder().decode(url);
-        }
-        // nothing found
-        return "";
+        return getTranscoder().decode(getEncodedTextFromUrl(request));
     }
 
     /**
@@ -247,29 +241,16 @@ public class PlantUmlServlet extends HttpServlet {
      */
     private void prepareRequestForDispatch(HttpServletRequest request, String text, int idx) throws IOException {
         final String encoded = getTranscoder().encode(text);
-        final String index = (idx < 0) ? "" : idx + "/";
         // diagram sources
+        request.setAttribute("encoded", encoded);
         request.setAttribute("decoded", text);
-        request.setAttribute("index", idx);
+        request.setAttribute("index", (idx < 0) ? "" : idx);
         // properties
         request.setAttribute("showSocialButtons", Configuration.get("SHOW_SOCIAL_BUTTONS"));
         request.setAttribute("showGithubRibbon", Configuration.get("SHOW_GITHUB_RIBBON"));
-        // URL base
-        final String contextpath = request.getContextPath();
-        request.setAttribute("contextpath", contextpath);
-        // image URLs
-        final boolean hasImg = !text.isEmpty();
-        request.setAttribute("hasImg", hasImg);
-        request.setAttribute("imgurl", contextpath + "/png/" + index + encoded);
-        request.setAttribute("svgurl", contextpath + "/svg/" + index + encoded);
-        request.setAttribute("pdfurl", contextpath + "/pdf/" + index + encoded);
-        request.setAttribute("txturl", contextpath + "/txt/" + index + encoded);
-        request.setAttribute("mapurl", contextpath + "/map/" + index + encoded);
         // map for diagram source if necessary
-        final boolean hasMap = PlantumlUtils.hasCMapData(text);
-        request.setAttribute("hasMap", hasMap);
         String map = "";
-        if (hasMap) {
+        if (PlantumlUtils.hasCMapData(text)) {
             try {
                 map = UmlExtractor.extractMap(text);
             } catch (Exception e) {
@@ -312,23 +293,13 @@ public class PlantUmlServlet extends HttpServlet {
         String encoded,
         Integer index
     ) throws IOException {
-        final String result;
+        final String path;
         if (index == null || index < 0) {
-            result = request.getContextPath() + "/uml/" + encoded;
+            path = request.getContextPath() + "/uml/" + encoded;
         } else {
-            result = request.getContextPath() + "/uml/" + index + "/" + encoded;
+            path = request.getContextPath() + "/uml/" + index + "/" + encoded;
         }
-
-        response.sendRedirect(result);
-    }
-
-    /**
-     * Get PlantUML transcoder.
-     *
-     * @return transcoder instance
-     */
-    private Transcoder getTranscoder() {
-        return TranscoderUtil.getDefaultTranscoder();
+        response.sendRedirect(path);
     }
 
     /**
@@ -345,7 +316,6 @@ public class PlantUmlServlet extends HttpServlet {
             HttpsURLConnection con = (HttpsURLConnection) url.openConnection();
             con.setRequestMethod("GET");
             con.setReadTimeout(10000); // 10 seconds
-            // printHttpsCert(con);
             con.connect();
             return con;
         } else {
