@@ -105,6 +105,9 @@ function replaceUrl(url, encodedDiagram, index) {
   if (url.searchParams.get("url")) {
     url.searchParams.set("url", encodedDiagram);
   }
+  if (url.searchParams.get("source_url")) {
+    url.searchParams.set("source_url", encodedDiagram);
+  }
   return { url, pathname };
 }
 
@@ -123,7 +126,54 @@ function copyUrlToClipboard() {
   const input = document.getElementById("url");
   input.focus();
   input.select();
-  navigator.clipboard?.writeText(input.value).catch(() => {});
+  let sourceUrl = input.value; // 获取当前地址
+  fetch('https://s.dongzeviva.cn/api/short', {
+    method: 'POST', // 根据实际情况调整请求方法
+    body: JSON.stringify({sourceUrl}), // 发送请求
+    headers: {'Content-Type': 'application/json'}
+  }).then(response => response.json())
+    .then(result => {
+      // 复制响应结果到剪切板
+      // const input = document.getElementById('short-url');
+      sourceUrl = result.data;
+      input.value = result.data;
+      input.select();
+      document.execCommand('copy');
+      // 弹出提示
+      alert('短链生成完毕，并已复制到剪切板');
+    })
+    .catch(error => {
+      console.error(error);
+      // alert('生成短链失败');
+    });
+}
+
+
+function copySourceUrlToClipboard() {
+  const input = document.getElementById("source_url");
+  input.focus();
+  input.select();
+  let sourceUrl = input.value; // 获取当前地址
+  fetch('https://s.dongzeviva.cn/api/short', {
+    method: 'POST', // 根据实际情况调整请求方法
+    body: JSON.stringify({sourceUrl}), // 发送请求
+    headers: {'Content-Type': 'application/json'}
+  }).then(response => response.json())
+    .then(result => {
+      // 复制响应结果到剪切板
+      // const input = document.getElementById('short-url');
+      sourceUrl = result.data;
+      input.value = result.data;
+      input.select();
+      document.execCommand('copy');
+      // 弹出提示
+      alert('短链生成完毕，并已复制到剪切板');
+    })
+    .catch(error => {
+      console.error(error);
+      // alert('生成短链失败');
+    });
+
 }
 
 function copyCodeToClipboard() {
@@ -425,9 +475,12 @@ function syncDiagram(type, encodedDiagram, index) {
 
 function syncUrlTextInput(encodedDiagram, index) {
   const target = document.getElementById("url");
+  const sourceTarget = document.getElementById("source_url");
   document.appConfig.changeEventsEnabled = false;
   target.value = resolvePath(buildUrl("png", encodedDiagram, index));
   target.title = target.value;
+  sourceTarget.value = resolvePath(buildUrl("uml", encodedDiagram, index));
+  sourceTarget.title = sourceTarget.value;
   document.appConfig.changeEventsEnabled = true;
 }
 
@@ -450,6 +503,9 @@ function syncStaticPageData(includePaginatorUpdates) {
     // update URL input
     new Promise((resolve, _reject) => {
       if (document.getElementById("url")) {
+        syncUrlTextInput(encodedDiagram, index);
+      }
+      if (document.getElementById("source_url")) {
         syncUrlTextInput(encodedDiagram, index);
       }
       resolve();
@@ -562,6 +618,10 @@ function initializeUrlInput() {
   urlInput.value = resolvePath(urlInput.value);
   urlInput.title = urlInput.value;
 
+  const sourceUrlInput = document.getElementById("source_url");
+  sourceUrlInput.value = resolvePath(sourceUrlInput.value);
+  sourceUrlInput.title = sourceUrlInput.value;
+
   // update editor and everything else if the URL input is changed
   urlInput.addEventListener("change", (event) => {
     if (document.appConfig.changeEventsEnabled) {
@@ -580,6 +640,25 @@ function initializeUrlInput() {
       });
     }
   });
+
+  // update editor and everything else if the URL input is changed
+  // sourceUrlInput.addEventListener("change", (event) => {
+  //   if (document.appConfig.changeEventsEnabled) {
+  //     document.appConfig.autoRefreshState = "started";
+  //     const analysedUrl = analyseUrl(event.target.value);
+  //     decodeDiagram(analysedUrl.encodedDiagram, (code) => {
+  //       syncCodeEditor(code);
+  //       sendMessage({
+  //         sender: "url",
+  //         data: {
+  //           encodedDiagram: analysedUrl.encodedDiagram,
+  //           index: analysedUrl.index,
+  //         },
+  //         synchronize: true,
+  //       });
+  //     });
+  //   }
+  // });
 }
 
 function initializeAppData() {
