@@ -8,7 +8,7 @@ env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
   DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
   IMAGE_NAME: plantuml-server
-  DOCKERFILE_PATH: Dockerfile-tomcat
+  DOCKERFILE_PATH: Dockerfile.tomcat
 
 jobs:
   build-and-push-image:
